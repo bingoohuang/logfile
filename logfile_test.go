@@ -1,22 +1,12 @@
-# logfile
-
-write log from other systems to different files
-
-1. 当前写入：日志（包含时间）=> `应用名/日期(YYYYMMDD)/应用名_YYYYMMDD_源IP_分区ID.log`
-1. 超期归档：归档n（如7天）之前的日志：`应用名/日期(YYYYMMDD)/应用名_YYYYMMDD_源IP_分区ID.tar.gz` (保留.tar.gz，在不限制大小时只包含1一个文件，为后续可能的日志文件最大大小做预留)
-1. 过期删除：删除n（如90天）之前的归档日志
-
-usage:
-
-```go
-package main
+package logfile_test
 
 import (
 	"github.com/bingoohuang/logfile"
+	"testing"
 	"time"
 )
 
-func main() {
+func TestLog(t *testing.T) {
 	l := logfile.File{
 		Pattern:           "{APP}/YYYYMMDD/{APP}_YYYYMMDD_{IP}_{ZONE}.log",
 		MaxDelayDays:      1,    // 日志时间最多落后于当前系统时间1天
@@ -41,4 +31,3 @@ func main() {
 		"ZONE": "zone01",
 	}, day2, "我是第2天的一行日志，啦啦啦啦啦")
 }
-```
