@@ -21,7 +21,7 @@ func main() {
 		Pattern:           "{APP}/YYYYMMDD/{APP}_YYYYMMDD_{IP}_{ZONE}.log",
 		MaxDelayDays:      1,    // 日志时间最多落后于当前系统时间1天
 		ArchiveDays:       7,    // 归档7天前的日志
-		DeleteArchiveDays: 90,   // 删除90天之前的归档日志
+		DeleteArchiveDays: 90,   // 删除90天前的归档日志
 		Flush:             true, // 测试用，生产建议不打开，影响写入性能
 	}
 

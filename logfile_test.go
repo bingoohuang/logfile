@@ -8,7 +8,7 @@ import (
 
 func TestLog(t *testing.T) {
 	l := logfile.File{
-		Pattern:           "{APP}/YYYYMMDD/{APP}_YYYYMMDD_{IP}_{ZONE}.log",
+		Pattern:           "logs/{APP}/YYYYMMDD/{APP}_YYYYMMDD_{IP}_{ZONE}.log",
 		MaxDelayDays:      1,    // 日志时间最多落后于当前系统时间1天
 		ArchiveDays:       7,    // 归档7天前的日志
 		DeleteArchiveDays: 90,   // 删除90天之前的归档日志
