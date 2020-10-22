@@ -18,11 +18,9 @@ import (
 
 func main() {
 	l := logfile.File{
-		Pattern:           "{APP}/YYYYMMDD/{APP}_YYYYMMDD_{IP}_{ZONE}.log",
-		MaxDelayDays:      1,    // 日志时间最多落后于当前系统时间1天
-		ArchiveDays:       7,    // 归档7天前的日志
-		DeleteArchiveDays: 90,   // 删除90天前的归档日志
-		Flush:             true, // 测试用，生产建议不打开，影响写入性能
+		Pattern:     "{APP}/YYYYMMDD/{APP}_YYYYMMDD_{IP}_{ZONE}.log",
+		ArchiveDays: 1, // 归档1天前的日志
+		DeleteDays:  2, // 删除2天之前的日志（包括归档日志）
 	}
 
 	day1, _ := time.Parse("2006-01-02 15:04:05", "2020-10-21 18:00:54")
