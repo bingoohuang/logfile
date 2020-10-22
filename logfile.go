@@ -33,6 +33,7 @@ type File struct {
 
 type cacheValue struct {
 	f          *os.File
+	createTime time.Time
 	properties map[string]string
 }
 
@@ -43,10 +44,8 @@ func (f *File) Start() error {
 		f.Clock = clock.New()
 	}
 
-	if f.ArchiveDays > 0 || f.DeleteDays > 0 {
-		f.stop = make(chan bool)
-		go f.schedule()
-	}
+	f.stop = make(chan bool)
+	go f.schedule()
 
 	f.started = true
 
@@ -78,7 +77,7 @@ var ErrNotStarted = errors.New("not started")
 // Write 写入一条日志.
 func (f *File) Write(properties map[string]string, logTime time.Time, s string) error {
 	nowTime := f.Clock.Now()
-	if logTime.Before(nowTime.Add(time.Hour * -24 * time.Duration(f.ArchiveDays))) {
+	if logTime.Before(nowTime.Add(-Day * time.Duration(f.ArchiveDays))) {
 		return ErrOverArchiveDays
 	}
 
@@ -129,6 +128,7 @@ func (f *File) createFile(properties map[string]string, t time.Time) (cacheValue
 
 	f.cache[fn] = cacheValue{
 		f:          logFile,
+		createTime: t,
 		properties: properties,
 	}
 
@@ -149,7 +149,7 @@ func (f *File) createFileName(properties map[string]string, t time.Time) string 
 }
 
 func (f *File) schedule() {
-	tick := f.Clock.Ticker(24 * time.Hour)
+	tick := f.Clock.Ticker(Day)
 	defer tick.Stop()
 
 	logrus.Infof("scheduler started")
@@ -158,6 +158,8 @@ func (f *File) schedule() {
 	for {
 		select {
 		case <-tick.C:
+			f.clearOldFiles()
+
 			if f.DeleteDays > 0 {
 				f.deleteFiles()
 			}
@@ -171,28 +173,35 @@ func (f *File) schedule() {
 }
 
 func (f *File) deleteFiles() {
-	from := f.Clock.Now().Add(time.Hour * -24 * time.Duration(f.DeleteDays))
+	from := f.Clock.Now().Add(-Day * time.Duration(f.DeleteDays))
 	for {
-		found := false
-
-		for _, v := range f.cache {
-			fn := f.createFileName(v.properties, from)
-			matches, _ := filepath.Glob(fn + "*")
-			if !found && len(matches) > 0 {
-				found = true
-			}
-
-			removeFiles(matches)
-		}
-
 		// 没有找到需要删除的任何文件，结束
-		if !found {
+		if !f.iterateCache4Delete(from) {
 			break
 		}
 
 		// 再往前推一天
-		from = from.Add(time.Hour * -24)
+		from = from.Add(-Day)
 	}
+}
+
+func (f *File) iterateCache4Delete(from time.Time) bool {
+	found := false
+
+	f.cacheLock.Lock()
+	defer f.cacheLock.Unlock()
+
+	for _, v := range f.cache {
+		fn := f.createFileName(v.properties, from)
+		matches, _ := filepath.Glob(fn + "*")
+		if !found && len(matches) > 0 {
+			found = true
+		}
+
+		removeFiles(matches)
+	}
+
+	return found
 }
 
 func removeFiles(matches []string) {
@@ -206,36 +215,60 @@ func removeFiles(matches []string) {
 }
 
 func (f *File) archiveFiles() {
-	from := f.Clock.Now().Add(time.Hour * -24 * time.Duration(f.ArchiveDays))
+	from := f.Clock.Now().Add(-Day * time.Duration(f.ArchiveDays))
 	for {
-		found := false
-
-		for _, v := range f.cache {
-			fn := f.createFileName(v.properties, from)
-			matches, _ := filepath.Glob(fn + "*")
-			matches = filterOutTarGz(matches)
-
-			if len(matches) == 0 {
-				continue
-			}
-
-			found = true
-
-			if err := CreateTarGz(fn+".tar.gz", matches); err != nil {
-				logrus.Warnf("create %s.tar.gz with files %v error: %v", fn, matches, err)
-			} else {
-				removeFiles(matches)
-				logrus.Infof("create %s.tar.gz success with files %v", fn, matches)
-			}
-		}
-
 		// 没有找到需要删除的任何文件，结束
-		if !found {
+		if !f.iterateCache4Archive(from) {
 			break
 		}
 
 		// 再往前推一天
-		from = from.Add(time.Hour * -24)
+		from = from.Add(-Day)
+	}
+}
+
+func (f *File) iterateCache4Archive(from time.Time) bool {
+	found := false
+
+	f.cacheLock.Lock()
+	defer f.cacheLock.Unlock()
+
+	for _, v := range f.cache {
+		fn := f.createFileName(v.properties, from)
+		matches, _ := filepath.Glob(fn + "*")
+		matches = filterOutTarGz(matches)
+
+		if len(matches) == 0 {
+			continue
+		}
+
+		found = true
+
+		if err := CreateTarGz(fn+".tar.gz", matches); err != nil {
+			logrus.Warnf("create %s.tar.gz with files %v error: %v", fn, matches, err)
+		} else {
+			logrus.Infof("create %s.tar.gz success with files %v", fn, matches)
+			removeFiles(matches)
+		}
+	}
+
+	return found
+}
+
+// Day means 24 hours.
+const Day = time.Hour * 24
+
+func (f *File) clearOldFiles() {
+	f.cacheLock.Lock()
+	defer f.cacheLock.Unlock()
+
+	now := f.Clock.Now()
+
+	for k, v := range f.cache {
+		if now.Sub(v.createTime) > Day {
+			v.f.Close()
+			delete(f.cache, k)
+		}
 	}
 }
 

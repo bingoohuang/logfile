@@ -34,7 +34,7 @@ func TestLog(t *testing.T) {
 		"ZONE": "zone01",
 	}, day1, "我是第1天的一行日志，啦啦啦啦啦"))
 
-	day2 := day1.Add(24 * time.Hour)
+	day2 := day1.Add(logfile.Day)
 
 	assert.Nil(t, l.Write(map[string]string{
 		"APP":  "ids",
@@ -77,20 +77,20 @@ func TestArchiveDays(t *testing.T) {
 		"ZONE": "zone01",
 	}, day1, "我是第1天的一行日志，啦啦啦啦啦"))
 
-	clockMock.Add(24 * time.Hour)
+	clockMock.Add(logfile.Day)
 	gosched()
 
-	day2 := day1.Add(24 * time.Hour)
+	day2 := day1.Add(logfile.Day)
 	assert.Nil(t, l.Write(map[string]string{
 		"APP":  "arhive",
 		"IP":   "192.168.0.1",
 		"ZONE": "zone01",
 	}, day2, "我是第-1天的一行日志，啦啦啦啦啦"))
 
-	clockMock.Add(24 * time.Hour)
+	clockMock.Add(logfile.Day)
 	gosched()
 
-	day2 = day2.Add(24 * time.Hour)
+	day2 = day2.Add(logfile.Day)
 
 	assert.Nil(t, l.Write(map[string]string{
 		"APP":  "arhive",
