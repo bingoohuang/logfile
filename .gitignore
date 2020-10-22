@@ -16,3 +16,4 @@
 .idea
 logs
 testdata/a.tar.gz
+*.tar.gz

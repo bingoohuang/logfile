@@ -42,15 +42,15 @@ func TestLog(t *testing.T) {
 		"ZONE": "zone01",
 	}, day2, "我是第2天的一行日志，啦啦啦啦啦"))
 
-	err := logfile.CreateTarGz("testdata/a.tar.gz", []string{
+	err := logfile.CreateTarGz("a.tar.gz", []string{
 		"logs/ids/20201021/ids_20201021_192.168.0.1_zone01.log",
 		"logs/ids/20201022/ids_20201022_192.168.0.1_zone01.log",
 	})
 	assert.Nil(t, err)
 
-	os.RemoveAll("testdata/logs")
+	os.RemoveAll("logs")
 
-	r, _ := os.Open("testdata/a.tar.gz")
+	r, _ := os.Open("a.tar.gz")
 	assert.Nil(t, logfile.ExtractTarGz(r))
 }
 
