@@ -128,7 +128,7 @@ func (f *File) createFile(properties map[string]string, t time.Time) (cacheValue
 
 	f.cache[fn] = cacheValue{
 		f:          logFile,
-		createTime: t,
+		createTime: f.Clock.Now(),
 		properties: properties,
 	}
 
