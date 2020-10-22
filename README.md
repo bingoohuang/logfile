@@ -48,3 +48,8 @@ func main() {
 	}, day2, "我是第2天的一行日志，啦啦啦啦啦")
 }
 ```
+
+
+## [Onefetch](https://github.com/o2sh/onefetch)
+
+![image](https://user-images.githubusercontent.com/1940588/96832664-b5ddbd00-1471-11eb-8538-8267b806481d.png)
