@@ -1,5 +1,11 @@
 # logfile
 
+[![Travis CI](https://travis-ci.com/bingoohuang/logfile.svg?branch=master)](https://travis-ci.com/bingoohuang/logfile)
+[![Software License](https://img.shields.io/badge/License-MIT-orange.svg?style=flat-square)](https://github.com/bingoohuang/logfile/blob/master/LICENSE.md)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat-square)](https://godoc.org/github.com/bingoohuang/logfile)
+[![Coverage Status](http://codecov.io/github/bingoohuang/logfile/coverage.svg?branch=master)](http://codecov.io/github/bingoohuang/logfile?branch=master)
+[![goreport](https://www.goreportcard.com/badge/github.com/bingoohuang/logfile)](https://www.goreportcard.com/report/github.com/bingoohuang/logfile)
+
 write log from other systems to different files
 
 1. 当前写入：日志（包含时间）=> `应用名/日期(YYYYMMDD)/应用名_YYYYMMDD_源IP_分区ID.log`
