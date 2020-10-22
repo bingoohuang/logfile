@@ -2,6 +2,7 @@ package logfile_test
 
 import (
 	"github.com/bingoohuang/logfile"
+	"strings"
 	"testing"
 	"time"
 )
@@ -30,4 +31,28 @@ func TestLog(t *testing.T) {
 		"IP":   "192.168.0.1",
 		"ZONE": "zone01",
 	}, day2, "我是第2天的一行日志，啦啦啦啦啦")
+}
+
+/*
+Benchmark_CaseInsensitiveReplace-12       521304              2316 ns/op
+Benchmark_CaseSensitiveReplace-12       12651721                95.2 ns/op
+Benchmark_Replace-12                     6340994               183 ns/op
+*/
+
+func Benchmark_CaseInsensitiveReplace(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		logfile.ReplaceIgnoreCase("{Title}|{Title}", "{title}", "My Title")
+	}
+}
+
+func Benchmark_CaseSensitiveReplace(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		strings.ReplaceAll("{Title}|{Title}", "{Title}", "My Title")
+	}
+}
+
+func Benchmark_ReplaceAll(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		logfile.ReplaceAll("{Title}|{Title}", "{Title}", "My Title")
+	}
 }

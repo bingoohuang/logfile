@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -54,12 +55,12 @@ func (f *File) Write(properties map[string]string, logTime time.Time, s string) 
 func (f *File) createFile(properties map[string]string, t time.Time) (*os.File, error) {
 	fn := f.Pattern
 	for k, v := range properties {
-		fn = strings.ReplaceAll(fn, "{"+k+"}", v)
+		fn = ReplaceAll(fn, "{"+k+"}", v)
 	}
 
-	fn = strings.ReplaceAll(fn, "YYYY", t.Format("2006"))
-	fn = strings.ReplaceAll(fn, "MM", t.Format("01"))
-	fn = strings.ReplaceAll(fn, "DD", t.Format("02"))
+	fn = ReplaceAll(fn, "YYYY", t.Format("2006"))
+	fn = ReplaceAll(fn, "MM", t.Format("01"))
+	fn = ReplaceAll(fn, "DD", t.Format("02"))
 
 	if f.cache == nil {
 		f.cache = make(map[string]*os.File)
@@ -81,4 +82,34 @@ func (f *File) createFile(properties map[string]string, t time.Time) (*os.File, 
 	f.cache[fn] = logFile
 
 	return logFile, nil
+}
+
+// ReplaceIgnoreCase replaces  all the search string to replace in subject with case-insensitive.
+func ReplaceIgnoreCase(subject string, search string, replace string) string {
+	searchRegex := regexp.MustCompile("(?i)" + search)
+	return searchRegex.ReplaceAllString(subject, replace)
+}
+
+// ReplaceAll replaces  all the search string to replace in subject with case-insensitive.
+func ReplaceAll(subject string, search string, replace string) string {
+	u := strings.ToUpper(subject)
+	s := strings.ToUpper(search)
+	r := ""
+	l := len(s)
+
+	for {
+		i := strings.Index(u, s)
+		if i < 0 {
+			return r + subject
+		}
+
+		if i == 0 {
+			r += replace
+		} else {
+			r += subject[:i] + replace
+		}
+
+		u = u[i+l:]
+		subject = subject[i+l:]
+	}
 }
