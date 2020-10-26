@@ -60,10 +60,12 @@ func (f *File) Close() error {
 		f.stop <- true
 	}
 
+	f.cacheLock.Lock()
 	for _, v := range f.cache {
 		_ = v.f.Close()
 	}
 	f.cache = nil
+	f.cacheLock.Unlock()
 
 	return nil
 }
@@ -194,9 +196,7 @@ func (f *File) iterateCache4Delete(from time.Time) bool {
 	for _, v := range f.cache {
 		fn := f.createFileName(v.properties, from)
 		matches, _ := filepath.Glob(fn + "*")
-		if !found && len(matches) > 0 {
-			found = true
-		}
+		found = found || len(matches) > 0
 
 		removeFiles(matches)
 	}
@@ -236,9 +236,7 @@ func (f *File) iterateCache4Archive(from time.Time) bool {
 	for _, v := range f.cache {
 		fn := f.createFileName(v.properties, from)
 		matches, _ := filepath.Glob(fn + "*")
-		matches = filterOutTarGz(matches)
-
-		if len(matches) == 0 {
+		if matches = filterOutTarGz(matches); len(matches) == 0 {
 			continue
 		}
 
@@ -307,12 +305,7 @@ func ReplaceAll(subject string, search string, replace string) string {
 			return r + subject
 		}
 
-		if i == 0 {
-			r += replace
-		} else {
-			r += subject[:i] + replace
-		}
-
+		r += subject[:i] + replace
 		u = u[i+l:]
 		subject = subject[i+l:]
 	}
