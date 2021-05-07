@@ -2,6 +2,7 @@ package logfile
 
 import (
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,30 +22,85 @@ type File struct {
 	ArchiveDays int
 	// DeleteDays 定义了多少天之前的日志删除（包括归档日志）。0时不删除.
 	DeleteDays int
-	// 是否写入后刷盘.
-	Flush bool
 
 	cacheLock sync.Mutex
-	cache     map[string]cacheValue
+	cache     map[string]*cacheValue
 	Clock     clock.Clock
-	stop      chan bool
+	stop      chan struct{}
 	started   bool
 }
 
 type cacheValue struct {
+	fn         string
 	f          *os.File
 	createTime time.Time
 	properties map[string]string
+	msgCh      chan string
+	exitChan   chan struct{}
+}
+
+func (v *cacheValue) write(s string) {
+	if len(s) == 0 || s[len(s)-1] != '\n' {
+		s += "\n"
+	}
+
+	v.msgCh <- s
+}
+
+func (v *cacheValue) run(f *File) {
+	defer func() {
+		v.exitChan <- struct{}{}
+		f.cacheRemove(v.fn)
+	}()
+
+	for {
+		msgCount, ok := v.writeUntilEmpty()
+		if !ok {
+			return
+		}
+
+		if msgCount > 0 {
+			if err := v.f.Sync(); err != nil {
+				log.Printf("sync file %s error: %v", v.fn, err)
+				return
+			}
+		}
+	}
+}
+
+func (v *cacheValue) writeUntilEmpty() (int, bool) {
+	count := 0
+	for {
+		select {
+		case s, ok := <-v.msgCh:
+			if !ok {
+				return count, false
+			}
+			if _, err := v.f.WriteString(s); err != nil {
+				log.Printf("write file %s error: %v", v.fn, err)
+				return count, false
+			}
+			count++
+		default:
+			return count, true
+		}
+	}
+}
+
+func (v *cacheValue) close() error {
+	close(v.msgCh)
+	<-v.exitChan
+	return nil
 }
 
 // Start starts the logfile archiving and deleting works after necessary initialization. .
 func (f *File) Start() error {
-	f.cache = make(map[string]cacheValue)
+	f.cache = make(map[string]*cacheValue)
 	if f.Clock == nil {
 		f.Clock = clock.New()
 	}
 
-	f.stop = make(chan bool)
+	f.stop = make(chan struct{})
 	go f.schedule()
 
 	f.started = true
@@ -55,17 +111,15 @@ func (f *File) Start() error {
 // Close shutdowns the scheduler.
 func (f *File) Close() error {
 	f.started = false
-
-	if f.stop != nil {
-		f.stop <- true
-	}
+	f.stop <- struct{}{}
 
 	f.cacheLock.Lock()
-	for _, v := range f.cache {
-		_ = v.f.Close()
+	defer f.cacheLock.Unlock()
+
+	for k, v := range f.cache {
+		_ = v.close()
+		delete(f.cache, k)
 	}
-	f.cache = nil
-	f.cacheLock.Unlock()
 
 	return nil
 }
@@ -95,24 +149,12 @@ func (f *File) Write(properties map[string]string, logTime time.Time, s string) 
 		return err
 	}
 
-	if len(s) == 0 || s[len(s)-1] != '\n' {
-		s += "\n"
-	}
-
-	if _, err := v.f.WriteString(s); err != nil {
-		return err
-	}
-
-	if f.Flush {
-		if err := v.f.Sync(); err != nil {
-			return err
-		}
-	}
+	v.write(s)
 
 	return nil
 }
 
-func (f *File) createFile(properties map[string]string, t time.Time) (cacheValue, error) {
+func (f *File) createFile(properties map[string]string, t time.Time) (*cacheValue, error) {
 	fn := f.createFileName(properties, t)
 
 	if logFile, ok := f.cache[fn]; ok {
@@ -120,21 +162,27 @@ func (f *File) createFile(properties map[string]string, t time.Time) (cacheValue
 	}
 
 	if err := os.MkdirAll(filepath.Dir(fn), os.ModePerm); err != nil {
-		return cacheValue{}, err
+		return nil, err
 	}
 
 	logFile, err := os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
-		return cacheValue{}, err
+		return nil, err
 	}
 
-	f.cache[fn] = cacheValue{
+	v := &cacheValue{
+		fn:         fn,
 		f:          logFile,
 		createTime: f.Clock.Now(),
 		properties: properties,
+		msgCh:      make(chan string, 1000),
+		exitChan:   make(chan struct{}),
 	}
+	go v.run(f)
 
-	return f.cache[fn], nil
+	f.cache[fn] = v
+
+	return v, nil
 }
 
 func (f *File) createFileName(properties map[string]string, t time.Time) string {
@@ -197,7 +245,6 @@ func (f *File) iterateCache4Delete(from time.Time) bool {
 		fn := f.createFileName(v.properties, from)
 		matches, _ := filepath.Glob(fn + "*")
 		found = found || len(matches) > 0
-
 		removeFiles(matches)
 	}
 
@@ -257,17 +304,24 @@ func (f *File) iterateCache4Archive(from time.Time) bool {
 const Day = time.Hour * 24
 
 func (f *File) clearOldFiles() {
+	now := f.Clock.Now()
+
 	f.cacheLock.Lock()
 	defer f.cacheLock.Unlock()
 
-	now := f.Clock.Now()
-
 	for k, v := range f.cache {
-		if now.Sub(v.createTime) > Day {
-			v.f.Close()
+		if now.Sub(v.createTime) > 2*Day {
+			_ = v.close()
 			delete(f.cache, k)
 		}
 	}
+}
+
+func (f *File) cacheRemove(k string) {
+	f.cacheLock.Lock()
+	defer f.cacheLock.Unlock()
+
+	delete(f.cache, k)
 }
 
 func filterOutTarGz(matches []string) []string {
@@ -288,8 +342,8 @@ func filterOutTarGz(matches []string) []string {
 
 // ReplaceIgnoreCase replaces  all the search string to replace in subject with case-insensitive.
 func ReplaceIgnoreCase(subject string, search string, replace string) string {
-	searchRegex := regexp.MustCompile("(?i)" + search)
-	return searchRegex.ReplaceAllString(subject, replace)
+	r := regexp.MustCompile("(?i)" + regexp.QuoteMeta(search))
+	return r.ReplaceAllString(subject, replace)
 }
 
 // ReplaceAll replaces  all the search string to replace in subject with case-insensitive.

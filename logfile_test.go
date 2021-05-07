@@ -18,8 +18,7 @@ func TestLog(t *testing.T) {
 		ArchiveDays: 7,  // 归档7天前的日志
 		DeleteDays:  90, // 删除90天之前的日志（包括归档日志）
 
-		// 以下两项，是测试用，请在生产环境中忽略
-		Flush: true,      // 测试用，生产建议不打开，影响写入性能
+		// 以下，是测试用，请在生产环境中忽略
 		Clock: clockMock, // 模拟时间
 	}
 	assert.Nil(t, l.Start())
@@ -64,8 +63,7 @@ func TestArchiveDays(t *testing.T) {
 		ArchiveDays: 1, // 归档1天前的日志
 		DeleteDays:  2, // 删除2天之前的日志（包括归档日志）
 
-		// 以下两项，是测试用，请在生产环境中忽略
-		Flush: true,      // 测试用，生产建议不打开，影响写入性能
+		// 以下，是测试用，请在生产环境中忽略
 		Clock: clockMock, // 模拟时间
 	}
 	assert.Nil(t, l.Start())

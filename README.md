@@ -28,8 +28,8 @@ func main() {
 		ArchiveDays: 1, // 归档1天前的日志
 		DeleteDays:  2, // 删除2天之前的日志（包括归档日志）
 	}
-    // 开始
-    l.Start()
+	// 开始
+	l.Start()
 
 	day1, _ := time.Parse("2006-01-02 15:04:05", "2020-10-21 18:00:54")
 
@@ -48,7 +48,6 @@ func main() {
 	}, day2, "我是第2天的一行日志，啦啦啦啦啦")
 }
 ```
-
 
 ## [Onefetch](https://github.com/o2sh/onefetch)
 
