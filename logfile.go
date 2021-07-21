@@ -22,6 +22,8 @@ type File struct {
 	ArchiveDays int
 	// DeleteDays 定义了多少天之前的日志删除（包括归档日志）。0时不删除.
 	DeleteDays int
+	// SyncDelay 多久刷盘一次（默认10s).
+	SyncDelay time.Duration
 
 	cacheLock sync.Mutex
 	cache     map[string]*cacheValue
@@ -53,37 +55,52 @@ func (v *cacheValue) run(f *File) {
 		f.cacheRemove(v.fn)
 	}()
 
-	for {
-		msgCount, ok := v.writeUntilEmpty()
-		if !ok {
-			return
-		}
+	msgCounter := make(chan bool)
+	go v.writeUntilEmpty(msgCounter)
 
-		if msgCount > 0 {
-			if err := v.f.Sync(); err != nil {
-				log.Printf("sync file %s error: %v", v.fn, err)
+	delay := f.SyncDelay
+	if delay <= 0 {
+		delay = 10 * time.Second
+	}
+
+	ticker := time.NewTicker(delay)
+	defer ticker.Stop()
+
+	msgCount := 0
+	defer v.sync(msgCount, true)
+
+	for {
+		select {
+		case _, ok := <-msgCounter:
+			if !ok {
 				return
 			}
+
+			msgCount++
+			v.sync(msgCount, false)
+		case <-ticker.C:
+			v.sync(msgCount, true)
+		}
+	}
+
+}
+
+func (v *cacheValue) sync(msgCount int, force bool) {
+	if force && msgCount > 0 || msgCount > 10 {
+		if err := v.f.Sync(); err != nil {
+			log.Printf("sync file %s error: %v", v.fn, err)
 		}
 	}
 }
 
-func (v *cacheValue) writeUntilEmpty() (int, bool) {
-	count := 0
-	for {
-		select {
-		case s, ok := <-v.msgCh:
-			if !ok {
-				return count, false
-			}
-			if _, err := v.f.WriteString(s); err != nil {
-				log.Printf("write file %s error: %v", v.fn, err)
-				return count, false
-			}
-			count++
-		default:
-			return count, true
+func (v *cacheValue) writeUntilEmpty(msgCounter chan bool) {
+	defer close(msgCounter)
+	for s := range v.msgCh {
+		if _, err := v.f.WriteString(s); err != nil {
+			log.Printf("write file %s error: %v", v.fn, err)
+			return
 		}
+		msgCounter <- true
 	}
 }
 

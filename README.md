@@ -27,6 +27,7 @@ func main() {
 		Pattern:     "{APP}/YYYYMMDD/{APP}_YYYYMMDD_{IP}_{ZONE}.log",
 		ArchiveDays: 1, // 归档1天前的日志
 		DeleteDays:  2, // 删除2天之前的日志（包括归档日志）
+		SyncDelay :  15*time.Second,  // SyncDelay 多久刷盘一次（默认10s)
 	}
 	// 开始
 	l.Start()
